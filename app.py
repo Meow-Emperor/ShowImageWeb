@@ -7,7 +7,7 @@ from datetime import datetime
 
 # --- 1. 页面基础配置 ---
 st.set_page_config(
-    page_title="Z-Image-Turbo Pro",
+    page_title="ShowImageWeb",
     page_icon="🎨",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -105,9 +105,9 @@ with st.sidebar:
     
     st.subheader("API 配置")
     api_base_url = st.text_input(
-        "Base URL", 
-        value="https://z-api.aioec.tech", 
-        help="默认为官方 API 地址"
+        "API URL",
+        value="https://z-api.aioec.tech/proxy/generate",
+        help="完整的API接口地址（包含端点路径）"
     )
     api_key = st.text_input("API Key", type="password", placeholder="sk-...")
     
@@ -125,7 +125,7 @@ with st.sidebar:
     st.markdown("---")
     # 显示历史记录数量
     history_count = len(st.session_state.history)
-    st.metric("已生成作品", f"{history_count} 张")
+    st.metric("已生成图像", f"{history_count} 张")
     
     if history_count > 0:
         if st.button("🗑️ 清空历史记录", type="secondary"):
@@ -133,8 +133,8 @@ with st.sidebar:
             st.rerun()
 
 # --- 5. 主工作区 ---
-st.title("🎨 Z-Image Studio")
-st.markdown("#### High-Performance AI Image Generation")
+st.title("🎨 ShowImageWeb")
+st.markdown("#### AI图像生成界面")
 
 # 输入区域容器
 with st.container():
@@ -177,7 +177,7 @@ if st.session_state.is_generating:
         st.rerun()
     else:
         # 准备参数
-        endpoint = f"{api_base_url.rstrip('/')}/proxy/generate"
+        endpoint = api_base_url.rstrip('/')
         final_seed = int(time.time() * 1000) % 1000000000 if use_random else int(seed_input)
         
         headers = {
@@ -225,10 +225,10 @@ if st.session_state.is_generating:
 
 # --- 7. 画廊展示区 (核心功能) ---
 st.markdown("---")
-st.subheader(f"🖼️ 作品画廊 ({len(st.session_state.history)})")
+st.subheader(f"🖼️ 图像画廊 ({len(st.session_state.history)})")
 
 if not st.session_state.history:
-    st.info("👋 还没有生成的作品，快去输入提示词试试吧！")
+    st.info("👋 还没有生成的图像，快去输入提示词试试吧！")
 else:
     history_items = st.session_state.history
     
@@ -254,7 +254,7 @@ else:
                     st.download_button(
                         label="⬇️ 下载",
                         data=download_data,
-                        file_name=f"z-image-{item['id']}.png",
+                        file_name=f"showimageweb-{item['id']}.png",
                         mime="image/png",
                         key=f"dl_{item['id']}",
                         use_container_width=True
