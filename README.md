@@ -90,6 +90,13 @@ streamlit run app.py --server.address=0.0.0.0 --server.port=8501
 http://localhost:8501
 ```
 
+## 如何更新？
+### 拉取最新代码并重建启动服务
+
+```
+  git pull origin main && docker compose up -d --build
+```
+
 ## API配置
 
 应用支持任意兼容的AI图像生成API：
