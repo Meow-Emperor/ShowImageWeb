@@ -598,35 +598,46 @@ def save_image_to_file(image_bytes, image_id):
         st.error(f"保存图片失败: {e}")
         return None
 
-def add_to_saved_gallery(prompt, image_bytes, seed, duration):
-    """将图片添加到保存的画廊"""
-    image_id = f"{int(time.time())}"
-    image_hash = get_image_hash(image_bytes)
+def save_temp_to_gallery(temp_item_id):
+    """将临时作品保存到永久画廊"""
+    # 在历史记录中找到对应的临时作品
+    for i, item in enumerate(st.session_state.history):
+        if item["id"] == temp_item_id:
+            temp_item = item
+            break
+    else:
+        st.toast("❌ 未找到对应的临时作品", icon="❌")
+        return False
 
-    # 检查是否已存在相同的图片
+    # 检查是否已经在永久画廊中
+    image_bytes = base64.b64decode(temp_item['base64_image'])
+    image_hash = get_image_hash(image_bytes)
     for item in st.session_state.saved_gallery:
         if item.get('hash') == image_hash:
             st.toast("🎨 该作品已在画廊中", icon="✅")
             return False
 
     # 保存图片文件
-    image_path = save_image_to_file(image_bytes, image_id)
+    image_path = save_image_to_file(image_bytes, temp_item['id'])
     if not image_path:
         return False
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 创建永久作品记录（保持相同的时间戳）
     gallery_item = {
-        "id": image_id,
-        "prompt": prompt,
+        "id": temp_item['id'],
+        "prompt": temp_item['prompt'],
         "image_path": image_path,
         "hash": image_hash,
-        "seed": seed,
-        "time": timestamp,
-        "duration": f"{duration:.2f}s",
+        "seed": temp_item['seed'],
+        "time": temp_item['time'],
+        "duration": temp_item['duration'],
         "saved_at": time.time()
     }
 
     st.session_state.saved_gallery.insert(0, gallery_item)
+
+    # 从临时历史中移除
+    st.session_state.history.pop(i)
 
     # 保存到文件
     if save_gallery_to_file():
@@ -801,6 +812,24 @@ with st.sidebar:
         ):
             clear_history()
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # 临时作品管理
+    temp_count = len(st.session_state.history)
+    if temp_count > 0:
+        st.markdown('<div style="margin-top: 1rem;">', unsafe_allow_html=True)
+        if st.button(
+            f"💾 保存所有临时作品 ({temp_count})",
+            use_container_width=True,
+            type="secondary",
+            help="将所有临时作品永久保存"
+        ):
+            saved_count = 0
+            for item in st.session_state.history[:]:  # 使用切片避免修改正在迭代的列表
+                if save_temp_to_gallery(item["id"]):
+                    saved_count += 1
+            if saved_count > 0:
+                st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
     # 保存画廊管理
@@ -1174,25 +1203,30 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
 
-                # 按钮区域：保存 + 下载
-                col_save, col_download = st.columns([1, 1])
+                # 按钮区域：移除 + 下载
+                col_remove, col_download = st.columns([1, 1])
 
-                # 只有临时作品才显示保存按钮
-                with col_save:
+                with col_remove:
                     if is_temp_item:
-                        if st.button(
-                            f"💾 保存到画廊",
-                            key=f"save_{item['id']}",
-                            use_container_width=True,
-                            help="将作品永久保存到画廊"
-                        ):
-                            if add_to_saved_gallery(item['prompt'], image_data, item['seed'], float(item['duration'].rstrip('s'))):
-                                st.rerun()
-                    else:
-                        # 永久作品显示删除按钮
+                        # 临时作品显示移除按钮
                         if st.button(
                             f"🗑️ 移除",
-                            key=f"remove_{item['id']}",
+                            key=f"remove_temp_{item['id']}",
+                            use_container_width=True,
+                            help="从画廊中移除此临时作品"
+                        ):
+                            # 从历史记录中移除
+                            for i, hist_item in enumerate(st.session_state.history):
+                                if hist_item["id"] == item['id']:
+                                    st.session_state.history.pop(i)
+                                    st.toast("🗑️ 作品已从画廊移除", icon="✅")
+                                    st.rerun()
+                                    break
+                    else:
+                        # 永久作品显示移除按钮
+                        if st.button(
+                            f"🗑️ 移除",
+                            key=f"remove_saved_{item['id']}",
                             use_container_width=True,
                             help="从永久画廊中移除此作品"
                         ):
