@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import os
 import hashlib
+from openai import OpenAI
 
 # --- 1. 页面基础配置 ---
 st.set_page_config(
@@ -753,12 +754,29 @@ with st.sidebar:
     # API配置区域
     st.markdown('<h4 style="color: #667eea; margin-bottom: 0.5rem; font-size: 0.9rem;">🔑 API 配置</h4>', unsafe_allow_html=True)
 
-    api_base_url = st.text_input(
-        "🌐 API Endpoint",
-        value="https://z-api.aioec.tech/proxy/generate",
-        help="完整的API接口地址",
-        label_visibility="visible"
+    # API类型选择
+    api_type = st.selectbox(
+        "🔧 API 类型",
+        options=["L站Lazy佬API", "OpenAI格式API"],
+        index=1,
+        help="选择API调用格式"
     )
+
+    # 根据API类型显示不同的配置
+    if api_type == "L站Lazy佬API":
+        api_base_url = st.text_input(
+            "🌐 API Endpoint",
+            value="https://z-api.aioec.tech/proxy/generate",
+            help="完整的API接口地址",
+            label_visibility="visible"
+        )
+    else:  # OpenAI格式API
+        api_base_url = st.text_input(
+            "🌐 API Base URL",
+            value="https://ai.gitee.com/v1",
+            help="OpenAI格式的API基础地址",
+            label_visibility="visible"
+        )
 
     # --- 默认 Key ---
     DEFAULT_API_KEY = "sk-zKTGcw8llBFZLpXAAsxTmMSmCfY8DNfe"
@@ -809,6 +827,37 @@ with st.sidebar:
             st.info("🗑️ 已删除本地保存的API Key")
         except Exception:
             pass
+
+    # 为OpenAI格式API添加额外配置
+    if api_type == "OpenAI格式API":
+        # 模型选择
+        model_name = st.selectbox(
+            "🤖 模型",
+            options=["z-image-turbo"],
+            index=0,
+            help="选择图像生成模型"
+        )
+
+        # 图像尺寸
+        image_size = st.selectbox(
+            "📐 图像尺寸",
+            options=["1024x1024", "2048x2048"],
+            index=0,
+            help="选择生成的图像尺寸"
+        )
+
+        # 推理步数
+        inference_steps = st.slider(
+            "🔢 推理步数",
+            min_value=1,
+            max_value=50,
+            value=9,
+            step=1,
+            help="推理步数，影响生成质量"
+        )
+
+        # 提示此为OpenAI格式的额外参数
+        st.info("💡 OpenAI格式API将使用模型、尺寸等参数进行生成")
 
     # 分隔线
     st.markdown('<div style="height: 1px; background: linear-gradient(90deg, rgba(102, 126, 234, 0.3), rgba(102, 126, 234, 0.1), transparent); margin: 1rem 0;"></div>', unsafe_allow_html=True)
@@ -1019,12 +1068,17 @@ if st.session_state.is_generating or (hasattr(st.session_state, 'is_processing')
         # 准备参数
         endpoint = api_base_url.rstrip('/')
         final_seed = int(time.time() * 1000) % 1000000000 if use_random else int(seed_input)
-        
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {"prompt": prompt, "seed": final_seed}
+
+        # 根据API类型选择不同的调用方式
+        if api_type == "L站Lazy佬API":
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {"prompt": prompt, "seed": final_seed}
+        else:  # OpenAI格式API
+            headers = None  # OpenAI库会自动处理
+            payload = None  # OpenAI库会自动处理
         
         # 高级加载状态显示
         with st.status(
@@ -1057,63 +1111,131 @@ if st.session_state.is_generating or (hasattr(st.session_state, 'is_processing')
                 progress_bar.progress(0.7)
                 status_text.text("🎨 AI 创作中...")
 
-                # --- 使用 cloudscraper 绕过验证 ---
-                # 创建一个 scraper 实例，模拟浏览器行为
-                scraper = cloudscraper.create_scraper(
-                    browser={
-                        'browser': 'chrome',
-                        'platform': 'windows',
-                        'desktop': True
-                    }
-                )
+                # 根据API类型选择不同的调用方式
+                if api_type == "L站Lazy佬API":
+                    # --- 使用 cloudscraper 绕过验证 ---
+                    # 创建一个 scraper 实例，模拟浏览器行为
+                    scraper = cloudscraper.create_scraper(
+                        browser={
+                            'browser': 'chrome',
+                            'platform': 'windows',
+                            'desktop': True
+                        }
+                    )
 
-                # 使用 scraper.post 代替 requests.post
-                response = scraper.post(endpoint, headers=headers, json=payload, timeout=60)
+                    # 使用 scraper.post 代替 requests.post
+                    response = scraper.post(endpoint, headers=headers, json=payload, timeout=60)
 
-                if response.status_code == 200:
-                    progress_bar.progress(0.9)
-                    status_text.text("📥 接收作品数据...")
+                    if response.status_code == 200:
+                        progress_bar.progress(0.9)
+                        status_text.text("📥 接收作品数据...")
 
-                    data = response.json()
-                    base64_str = data.get("base64")
+                        data = response.json()
+                        base64_str = data.get("base64")
 
-                    if base64_str:
-                        progress_bar.progress(1.0)
-                        status_text.text("✨ 作品完成!")
+                        if base64_str:
+                            progress_bar.progress(1.0)
+                            status_text.text("✨ 作品完成!")
 
-                        image_bytes = base64.b64decode(base64_str)
-                        duration = time.time() - start_time
+                            image_bytes = base64.b64decode(base64_str)
+                            duration = time.time() - start_time
 
-                        # ✅ 存入历史记录
-                        add_to_history(prompt, image_bytes, final_seed, duration)
-
-                        # 成功提示
-                        status.update(
-                            label=f"🎉 成功生成! 耗时 {duration:.2f} 秒",
-                            state="complete",
-                            expanded=False
-                        )
-
-                        # 成功庆祝动画
-                        st.markdown("""
-                        <div style="text-align: center; margin: 1rem 0;">
-                            <h3 style="color: #13B497;">🎊 作品创作完成!</h3>
-                            <p style="color: rgba(255,255,255,0.9);">
-                                您的AI作品已添加到画廊中，可以在下方查看和保存
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                        # 启动彩纸效果
-                        st.balloons()
+                            # ✅ 存入历史记录
+                            add_to_history(prompt, image_bytes, final_seed, duration)
+                        else:
+                            progress_bar.empty()
+                            status.update(label="❌ 数据解析失败", state="error")
+                            st.error("🔍 服务器返回成功但缺少图片数据")
                     else:
                         progress_bar.empty()
-                        status.update(label="❌ 数据解析失败", state="error")
-                        st.error("🔍 服务器返回成功但缺少图片数据")
-                else:
-                    progress_bar.empty()
-                    status.update(label="❌ 请求失败", state="error")
-                    st.error(f"🌐 API 错误 {response.status_code}: {response.text}")
+                        status.update(label="❌ 请求失败", state="error")
+                        st.error(f"🌐 API 错误 {response.status_code}: {response.text}")
+
+                else:  # OpenAI格式API
+                    try:
+                        # 使用OpenAI SDK
+                        client = OpenAI(
+                            base_url=endpoint,
+                            api_key=api_key
+                        )
+
+                        progress_bar.progress(0.6)
+                        status_text.text("🎨 AI 模型生成中...")
+
+                        # 调用OpenAI格式API
+                        response = client.images.generate(
+                            prompt=prompt,
+                            model=model_name,
+                            size=image_size,
+                            extra_body={
+                                "num_inference_steps": inference_steps,
+                            }
+                        )
+
+                        progress_bar.progress(0.9)
+                        status_text.text("📥 接收作品数据...")
+
+                        # 处理返回的图片数据
+                        image_bytes = None
+                        for i, image_data in enumerate(response.data):
+                            if image_data.url:
+                                # 从URL下载图片
+                                try:
+                                    img_response = requests.get(image_data.url, timeout=30)
+                                    img_response.raise_for_status()
+                                    image_bytes = img_response.content
+                                    break
+                                except Exception as e:
+                                    st.warning(f"下载图片失败: {e}")
+                                    continue
+                            elif image_data.b64_json:
+                                # 解码base64数据
+                                try:
+                                    image_bytes = base64.b64decode(image_data.b64_json)
+                                    break
+                                except Exception as e:
+                                    st.warning(f"解码图片失败: {e}")
+                                    continue
+
+                        if image_bytes:
+                            progress_bar.progress(1.0)
+                            status_text.text("✨ 作品完成!")
+
+                            duration = time.time() - start_time
+
+                            # ✅ 存入历史记录
+                            add_to_history(prompt, image_bytes, final_seed, duration)
+                        else:
+                            progress_bar.empty()
+                            status.update(label="❌ 数据解析失败", state="error")
+                            st.error("🔍 服务器返回成功但缺少有效的图片数据")
+
+                    except Exception as api_error:
+                        progress_bar.empty()
+                        status.update(label="❌ OpenAI API 错误", state="error")
+                        st.error(f"🤖 OpenAI API 错误: {str(api_error)}")
+
+                # 通用的成功提示
+                if 'image_bytes' in locals() and image_bytes is not None:
+                    # 成功提示
+                    status.update(
+                        label=f"🎉 成功生成! 耗时 {duration:.2f} 秒",
+                        state="complete",
+                        expanded=False
+                    )
+
+                    # 成功庆祝动画
+                    st.markdown("""
+                    <div style="text-align: center; margin: 1rem 0;">
+                        <h3 style="color: #13B497;">🎊 作品创作完成!</h3>
+                        <p style="color: rgba(255,255,255,0.9);">
+                            您的AI作品已添加到画廊中，可以在下方查看和保存
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # 启动彩纸效果
+                    st.balloons()
 
             except requests.exceptions.Timeout:
                 progress_bar.empty()
@@ -1126,6 +1248,7 @@ if st.session_state.is_generating or (hasattr(st.session_state, 'is_processing')
                 st.error("🌐 无法连接到AI服务器，请检查网络连接")
 
             except Exception as e:
+                # 通用异常处理，兼容两种API类型
                 progress_bar.empty()
                 status.update(label="❌ 系统异常", state="error")
                 st.error(f"💥 系统错误: {str(e)}")

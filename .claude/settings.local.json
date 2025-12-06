@@ -4,7 +4,11 @@
       "Bash(git init:*)",
       "Bash(git config:*)",
       "Bash(find:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(ping:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []
